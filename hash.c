@@ -27,12 +27,19 @@ struct hash {
 };
 
 
+struct hash_iter {
+	nodo_hash_t** vector;
+	nodo_hash_t* actual;
+	int pos;
+};
+
+
 // Funciones auxiliares.
 
 // Función de hashing multiplicativa extraida del "Kernighan and Ritchie"
 size_t aux_hashear_posicion(const char *clave) {
-	size_t len = strlen(clave);
-	unsigned int hash = 0;
+		size_t len = strlen(clave);
+		unsigned int hash = 0;
     for(unsigned int i = 0; i < len; i++) {
     	hash = 31 * hash + clave[i];
     }
@@ -109,10 +116,10 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
 }
 
 
-void *hash_borrar(hash_t *hash, const char *clave);
+void* hash_borrar(hash_t *hash, const char *clave);
 
 
-void *hash_obtener(const hash_t *hash, const char *clave) {
+void* hash_obtener(const hash_t *hash, const char *clave) {
 	if (!hash_pertenece(hash, clave)) return NULL;
 	size_t posicion_real = aux_encontrar_posicion(hash, clave);
 	return hash->vector[posicion_real]->dato;
@@ -133,6 +140,99 @@ size_t hash_cantidad(const hash_t *hash) {
 
 
 void hash_destruir(hash_t *hash);
+
+
+hash_iter_t* hash_iter_crear(const hash_t* hash){
+
+	hash_iter_t* iter = malloc(sizeof(hash_iter_t));
+	if(!iter) return NULL;
+	iter->vector = hash->vector;
+	int act = 0;
+
+	while (hash->vector[act] == NULL && act < TAM_HASH){
+		act++;
+	}
+	if (act == TAM_HASH){
+		iter->pos = -1;
+		iter->actual = NULL;
+		return iter;
+	}
+
+	iter->pos = act;
+	iter->actual = hash->vector[act];
+	return iter;
+}
+
+bool hash_iter_avanzar (hash_iter_t* iter){
+
+	if(hash_iter_al_final(iter) || iter->pos > TAM_HASH) return false;
+	int act = 0;
+	while(iter->vector[act] == NULL){
+		act++;
+	}
+
+	iter->actual = iter->vector[act];
+	return true;
+}
+
+
+const char* hash_iter_ver_actual(const hash_iter_t *iter){
+
+	if(hash_iter_al_final(iter)) return NULL;
+
+	return iter->actual->clave;
+}
+
+bool hash_iter_al_final(const hash_iter_t *iter){
+
+	if (iter->actual == NULL && iter->pos == -1){
+		return true;
+	}
+	return false;
+}
+
+
+void hash_iter_destruir(hash_iter_t* iter){
+	free(iter);
+}
+
+
+static void prueba_iterar_hash_vacio()
+{
+    hash_t* hash = hash_crear(NULL);
+    hash_iter_t* iter = hash_iter_crear(hash);
+    print_test("Prueba hash iter crear iterador hash vacio", iter);
+    print_test("Prueba hash iter esta al final", hash_iter_al_final(iter));
+    print_test("Prueba hash iter avanzar es false", !hash_iter_avanzar(iter));
+    print_test("Prueba hash iter ver actual es NULL", !hash_iter_ver_actual(iter));
+
+    hash_iter_destruir(iter);
+    //hash_destruir(hash);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 void pruebas() {
@@ -221,4 +321,5 @@ void pruebas() {
 
 int main() {
 	pruebas();
+	prueba_iterar_hash_vacio();
 }

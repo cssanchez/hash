@@ -60,7 +60,47 @@ size_t aux_encontrar_posicion(const hash_t *hash, const char *clave) {
 	return posicion;
 }
 
-void aux_redimensionar(hash_t *hash);
+char* strdup(const char *old) {
+	char *new;
+	if((new = malloc(strlen(old) + 1)) == NULL)
+	return NULL;
+	strcpy(new, old);
+	return new;
+}
+
+hash_t* aux_redimensionar(hash_t *hash, size_t tam){
+
+	//nodo_hash_t* aux = malloc(tam * sizeof(nodo_hash_t*));
+	hash_t* hash2 = malloc(sizeof(hash_t));
+	if (!hash2) return NULL;
+	hash2->vector = malloc(tam * sizeof(nodo_hash_t*));
+	if (!hash2->vector) {
+		free(hash2);
+		return NULL;
+	}
+
+	for (int i = 0; i < hash->posiciones_totales; i++){
+		if (hash->vector[i] != NULL){
+			char* copia = strdup(hash->vector[i]->clave);
+			void* dat = hash->vector[i]->dato;
+			if (hash->destruir_dato) {
+				void* dato_a_liberar = hash->vector[i]->dato;
+				hash->destruir_dato(dato_a_liberar);
+			}
+			free(hash->vector[i]);
+			size_t posicion = aux_encontrar_posicion(hash2, copia);
+			hash2->vector[posicion]->clave = copia;
+			hash2->vector[posicion]->dato = dat;
+		}
+	}
+	hash2->posiciones_ocupadas = hash->posiciones_ocupadas;
+	hash2->posiciones_totales = tam;
+	hash2->destruir_dato = hash->destruir_dato;
+	free (hash->vector);
+	return hash2;
+}
+
+
 
 
 // Primitivas de hash.
@@ -87,23 +127,23 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
  * Post: Se almacenó el par (clave, dato)
  */
 bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
-    printf("La posicion de %s es.....................: %zu\n", clave, aux_hashear_posicion(clave));
+    //printf("La posicion de %s es.....................: %zu\n", clave, aux_hashear_posicion(clave));
 	nodo_hash_t* nodo_a_guardar = malloc(sizeof(nodo_hash_t));
 	if (!nodo_a_guardar) return NULL;
 	nodo_a_guardar->clave = clave;
 	nodo_a_guardar->dato = dato;
 	nodo_a_guardar->borrado = false;
 	size_t posicion = aux_encontrar_posicion(hash, clave);
-    printf("La REAL de %s es.....................: %zu\n", clave, posicion);
+    /*printf("La REAL de %s es.....................: %zu\n", clave, posicion);
 	if (posicion != aux_hashear_posicion(clave)) {
 		printf("COLISIONNNNNN !!!!!!!!!!!!\n");
 		colisiones++;
-	}
+	}*/
 	if (hash_pertenece(hash, clave)) {
 		if (hash->destruir_dato) {
 			void* dato_a_liberar = hash->vector[posicion]->dato;
 			hash->destruir_dato(dato_a_liberar);
-			printf("holuu\n");
+			//printf("holuu\n");
 		}
 		hash->vector[posicion]->dato = dato; // Reemplazo el dato
 		return true;
@@ -116,7 +156,18 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
 }
 
 
-void* hash_borrar(hash_t *hash, const char *clave);
+void* hash_borrar(hash_t* hash, const char* clave){
+
+	if (!hash_pertenece(hash, clave) || clave == NULL) return NULL;
+	size_t posicion = aux_encontrar_posicion(hash,clave);
+	void* dato = hash->vector[posicion]->dato;
+	if (hash->destruir_dato) {
+		hash->destruir_dato(dato);
+	}
+	hash->vector[posicion]->borrado = true;
+	hash->posiciones_ocupadas--;
+	return dato;
+}
 
 
 void* hash_obtener(const hash_t *hash, const char *clave) {
@@ -129,7 +180,7 @@ void* hash_obtener(const hash_t *hash, const char *clave) {
 bool hash_pertenece(const hash_t *hash, const char *clave) {
 	size_t posicion = aux_encontrar_posicion(hash, clave);
 	//printf("la posicion real va a ser: %zu\n", posicion);
-	if (hash->vector[posicion] == NULL) return false;
+	if (hash->vector[posicion] == NULL || hash->vector[posicion]->borrado == true) return false;
 	return true;
 }
 
@@ -139,7 +190,20 @@ size_t hash_cantidad(const hash_t *hash) {
 }
 
 
-void hash_destruir(hash_t *hash);
+void hash_destruir(hash_t *hash){
+
+	for (int i = 0; i < hash->posiciones_totales; i++){
+		if (hash->vector[i] != NULL){
+			if (hash->destruir_dato) {
+				void* dato_a_liberar = hash->vector[i]->dato;
+				hash->destruir_dato(dato_a_liberar);
+			}
+			free(hash->vector[i]);
+		}
+	}
+	free(hash->vector);
+	free(hash);
+}
 
 
 hash_iter_t* hash_iter_crear(const hash_t* hash){
@@ -162,6 +226,7 @@ hash_iter_t* hash_iter_crear(const hash_t* hash){
 	iter->actual = hash->vector[act];
 	return iter;
 }
+
 
 bool hash_iter_avanzar (hash_iter_t* iter){
 
@@ -196,130 +261,3 @@ void hash_iter_destruir(hash_iter_t* iter){
 	free(iter);
 }
 
-
-static void prueba_iterar_hash_vacio()
-{
-    hash_t* hash = hash_crear(NULL);
-    hash_iter_t* iter = hash_iter_crear(hash);
-    print_test("Prueba hash iter crear iterador hash vacio", iter);
-    print_test("Prueba hash iter esta al final", hash_iter_al_final(iter));
-    print_test("Prueba hash iter avanzar es false", !hash_iter_avanzar(iter));
-    print_test("Prueba hash iter ver actual es NULL", !hash_iter_ver_actual(iter));
-
-    hash_iter_destruir(iter);
-    //hash_destruir(hash);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void pruebas() {
-	int dato0 = 0;
-	int dato1 = 1;
-	int dato2 = 2;
-	int dato3 = 3;
-	int dato99 = 99;
-	int dato88 = 88;
-
-	hash_t *hash = hash_crear(NULL);
-	print_test("Cantidad es 0", hash_cantidad(hash) == 0);
-	print_test("Pertenece es false", !hash_pertenece(hash, "Panda"));
-	print_test("Obtener es NULL", !hash_obtener(hash, "Panda"));
-	print_test("Guardo Panda", hash_guardar(hash, "Panda", &dato0));
-	print_test("Cantidad es 1", hash_cantidad(hash) == 1);
-	print_test("Pertenece Panda es true", hash_pertenece(hash, "Panda"));
-	print_test("Obtener Panda es dato0", hash_obtener(hash, "Panda") == &dato0);
-	print_test("Guardo Panda otra vez", hash_guardar(hash, "Panda", &dato1));
-	print_test("Cantidad sigue siendo 1", hash_cantidad(hash) == 1);
-	print_test("Pertenece Panda es true", hash_pertenece(hash, "Panda"));
-	print_test("Obtener Panda es dato1", hash_obtener(hash, "Panda") == &dato1);
-	print_test("Guardo Inti", hash_guardar(hash, "Inti", &dato2));
-	print_test("Guardo Toto", hash_guardar(hash, "Toto", &dato3));
-	print_test("Cantidad es 3", hash_cantidad(hash) == 3);
-	print_test("Pertenece Inti es true", hash_pertenece(hash, "Inti"));
-	print_test("Pertenece Toto es true", hash_pertenece(hash, "Toto"));
-	print_test("Obtener Inti es dato2", hash_obtener(hash, "Inti") == &dato2);
-	print_test("Obtener Toto es dato3", hash_obtener(hash, "Toto") == &dato3);
-	print_test("Guardo Pachita", hash_guardar(hash, "Pachita", &dato2));
-	print_test("Guardo Masche", hash_guardar(hash, "Masche", &dato2));
-	print_test("Guardo Lio", hash_guardar(hash, "Lio", &dato2));
-	print_test("Guardo Felix", hash_guardar(hash, "Felix", &dato2));
-	print_test("Guardo Miedo", hash_guardar(hash, "Miedo", &dato99));
-	print_test("Guardo Skyler", hash_guardar(hash, "Skyler", &dato2));
-	print_test("Guardo Peludito", hash_guardar(hash, "Peludito", &dato2));
-	print_test("Cantidad es 10", hash_cantidad(hash) == 10);
-	print_test("Pertenece Miedo es true", hash_pertenece(hash, "Miedo"));
-	print_test("Obtener Miedo es dato99", hash_obtener(hash, "Miedo") == &dato99);
-	print_test("Guardo Miedo otra vez", hash_guardar(hash, "Miedo", &dato0));
-	print_test("Cantidad sigue siendo 10", hash_cantidad(hash) == 10);
-	print_test("Obtener Miedo es dato0", hash_obtener(hash, "Miedo") == &dato0);
-	print_test("Guardo sdfgh", hash_guardar(hash, "sdfgh", &dato2));
-	print_test("Guardo ojhi7fv", hash_guardar(hash, "ojhi7fv", &dato2));
-	print_test("Guardo mvjgv", hash_guardar(hash, "mvjgv", &dato2));
-	print_test("Guardo campania", hash_guardar(hash, "campania", &dato2));
-	print_test("Guardo tagliafico", hash_guardar(hash, "tagliafico", &dato2));
-	print_test("Guardo toledo", hash_guardar(hash, "toledo", &dato2));
-	print_test("Guardo pellerano", hash_guardar(hash, "pellerano", &dato2));
-	print_test("Guardo cuesta", hash_guardar(hash, "cuesta", &dato2));
-	print_test("Guardo mendez", hash_guardar(hash, "mendez", &dato2));
-	print_test("Guardo ortiz", hash_guardar(hash, "ortiz", &dato2));
-	print_test("Guardo denis", hash_guardar(hash, "denis", &dato88));
-	print_test("Cantidad es 21", hash_cantidad(hash) == 21);
-	print_test("Obtener denis es dato88", hash_obtener(hash, "denis") == &dato88);
-	print_test("Guardo yoyo", hash_guardar(hash, "yoyo", &dato88));
-	print_test("Guardo jojop", hash_guardar(hash, "jojop", &dato88));
-	print_test("Guardo gugu", hash_guardar(hash, "gugu", &dato88));
-	print_test("Guardo hair", hash_guardar(hash, "hair", &dato88));
-	print_test("Guardo lede", hash_guardar(hash, "lede", &dato88));
-	print_test("Guardo garata", hash_guardar(hash, "garata", &dato88));
-	print_test("Guardo herete", hash_guardar(hash, "herete", &dato88));
-	print_test("Guardo poloto", hash_guardar(hash, "poloto", &dato88));
-	print_test("Guardo gogog", hash_guardar(hash, "gogog", &dato88));
-	print_test("Guardo cvbnm", hash_guardar(hash, "cvbnm", &dato88));
-	print_test("Guardo ghjkl", hash_guardar(hash, "ghjkl", &dato88));
-	print_test("Guardo poiuy", hash_guardar(hash, "poiuy", &dato88));
-	print_test("Guardo uhbnji", hash_guardar(hash, "uhbnji", &dato88));
-	print_test("Guardo qwert", hash_guardar(hash, "qwert", &dato88));
-	print_test("Guardo xdrcft", hash_guardar(hash, "xdrcft", &dato88));
-	print_test("Guardo pqmz", hash_guardar(hash, "pqmz", &dato88));
-	print_test("Guardo edcrfv", hash_guardar(hash, "edcrfv", &dato88));
-	print_test("Guardo kolpse", hash_guardar(hash, "kolpse", &dato88));
-	print_test("Guardo aquino", hash_guardar(hash, "aquino", &dato88));
-	print_test("Guardo 852741", hash_guardar(hash, "852741", &dato88));
-	print_test("Guardo osky", hash_guardar(hash, "osky", &dato88));
-	print_test("Guardo caro", hash_guardar(hash, "caro", &dato88));
-	print_test("Guardo fernet", hash_guardar(hash, "fernet", &dato88));
-
-	printf("Colisiones: %i\n", colisiones);
-
-
-
-
-}
-
-int main() {
-	pruebas();
-	prueba_iterar_hash_vacio();
-}

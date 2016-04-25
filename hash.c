@@ -37,13 +37,13 @@ struct hash_iter {
 // Funciones auxiliares.
 
 // Función de hashing multiplicativa extraida del "Kernighan and Ritchie"
-size_t aux_hashear_posicion(const char *clave) {
+size_t aux_hashear_posicion(const char *clave, const hash_t *hash) {
 		size_t len = strlen(clave);
-		unsigned int hash = 0;
+		unsigned int n = 0;
     for(unsigned int i = 0; i < len; i++) {
-    	hash = 31 * hash + clave[i];
+    	n = 31 * n + clave[i];
     }
-    return hash % TAM_HASH;
+    return n % hash->posiciones_totales;
 }
 
 
@@ -51,16 +51,17 @@ size_t aux_hashear_posicion(const char *clave) {
 // Si no está, va avanzando de a una posición hasta encontrarla. Devuelve la posición real.
 // Si llega a un lugar vacío antes de encontrarla, devuelve la posición de ese lugar vacío.
 size_t aux_encontrar_posicion(const hash_t *hash, const char *clave) {
-	size_t posicion = aux_hashear_posicion(clave);
+	size_t posicion = aux_hashear_posicion(clave, hash);
 	//printf("la posicion de hash es: %zu\n", posicion);
 	while (hash->vector[posicion] != NULL) {
 		if (strcmp(hash->vector[posicion]->clave, clave) == 0 && !hash->vector[posicion]->borrado)
 			break;
 		posicion++;
-		if (posicion == hash->posiciones_ocupadas) posicion = 0;
+		if (posicion == hash->posiciones_totales) posicion = 0;
 	}
 	return posicion;
 }
+
 
 char* strdup(const char *old) {
 	char *new;
@@ -69,6 +70,7 @@ char* strdup(const char *old) {
 	strcpy(new, old);
 	return new;
 }
+
 
 void aux_redimensionar(hash_t *hash, size_t tam){
 
@@ -83,10 +85,10 @@ void aux_redimensionar(hash_t *hash, size_t tam){
 		if (aux[i] != NULL && aux[i]->borrado == false){
 			char* copia_clave = strdup(aux[i]->clave);
 			void* copia_dato = aux[i]->dato;
-			if (hash->destruir_dato) {
+			/*if (hash->destruir_dato) {
 				void* dato_a_liberar = aux[i]->dato;
 				hash->destruir_dato(dato_a_liberar);
-			}
+			}*/
 
 			hash_guardar(hash, copia_clave, copia_dato);
 			//size_t posicion = aux_encontrar_posicion(hash, copia_clave);
@@ -97,11 +99,11 @@ void aux_redimensionar(hash_t *hash, size_t tam){
 			//hash->vector[posicion] = nodo_a_guardar; 
 			//hash->vector[posicion]->clave = copia_clave;
 			//hash->vector[posicion]->dato = copia_dato;
-			free(aux[i]);		
 		}
+		//free(aux[i]);		
+
 	}
 	free(aux);
-	hash->posiciones_totales = tam;
 }
 
 
@@ -155,14 +157,21 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
 	hash->vector[posicion] = nodo_a_guardar;
 	hash->posiciones_ocupadas++;
 	if ((float)hash->posiciones_ocupadas/(float)hash->posiciones_totales >= 0.7){ 
-		aux_redimensionar(hash, hash->posiciones_ocupadas * 2);
+		//printf("\nantes ocupadas:  %zu\n", hash->posiciones_ocupadas);
+		//printf("antes tot:  %zu\n", hash->posiciones_totales);
+
+		aux_redimensionar(hash, hash->posiciones_totales * 2);
+
+		//printf("despues ocupadas: %zu\n", hash->posiciones_ocupadas);
+		//printf("despues tot:  %zu\n", hash->posiciones_totales);
+
+
 	}	
 	return true;
 }
 
 
-void* hash_borrar(hash_t* hash, const char* clave){
-
+void* hash_borrar(hash_t* hash, const char* clave) {
 	if (!hash_pertenece(hash, clave) || clave == NULL) return NULL;
 	size_t posicion = aux_encontrar_posicion(hash,clave);
 	void* dato = hash->vector[posicion]->dato;
@@ -184,7 +193,6 @@ void* hash_obtener(const hash_t *hash, const char *clave) {
 
 bool hash_pertenece(const hash_t *hash, const char *clave) {
 	size_t posicion = aux_encontrar_posicion(hash, clave);
-	//printf("la posicion real va a ser: %zu\n", posicion);
 	if (hash->vector[posicion] == NULL) return false;
 	return true;
 }
@@ -199,7 +207,7 @@ void hash_destruir(hash_t *hash){
 
 	for (int i = 0; i < hash->posiciones_totales; i++){
 		if (hash->vector[i] != NULL){
-			if (hash->destruir_dato) {
+			if (hash->destruir_dato && !hash->vector[i]->borrado) {
 				void* dato_a_liberar = hash->vector[i]->dato;
 				hash->destruir_dato(dato_a_liberar);
 			}

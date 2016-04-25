@@ -53,7 +53,9 @@ size_t aux_hashear_posicion(const char *clave) {
 size_t aux_encontrar_posicion(const hash_t *hash, const char *clave) {
 	size_t posicion = aux_hashear_posicion(clave);
 	//printf("la posicion de hash es: %zu\n", posicion);
-	while (hash->vector[posicion] != NULL && strcmp(hash->vector[posicion]->clave, clave) != 0 && !hash->vector[posicion]->borrado) {
+	while (hash->vector[posicion] != NULL) {
+		if (strcmp(hash->vector[posicion]->clave, clave) == 0 && !hash->vector[posicion]->borrado)
+			break;
 		posicion++;
 		if (posicion == hash->posiciones_ocupadas) posicion = 0;
 	}
@@ -263,4 +265,3 @@ bool hash_iter_al_final(const hash_iter_t *iter){
 void hash_iter_destruir(hash_iter_t* iter){
 	free(iter);
 }
-

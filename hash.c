@@ -53,9 +53,9 @@ size_t aux_hashear_posicion(const char *clave) {
 size_t aux_encontrar_posicion(const hash_t *hash, const char *clave) {
 	size_t posicion = aux_hashear_posicion(clave);
 	//printf("la posicion de hash es: %zu\n", posicion);
-	while (hash->vector[posicion] != NULL && strcmp(hash->vector[posicion]->clave, clave) != 0) {
+	while (hash->vector[posicion] != NULL && strcmp(hash->vector[posicion]->clave, clave) != 0 && !hash->vector[posicion]->borrado) {
 		posicion++;
-		if (posicion == TAM_HASH) posicion = 0;
+		if (posicion == hash->posiciones_ocupadas) posicion = 0;
 	}
 	return posicion;
 }
@@ -68,36 +68,38 @@ char* strdup(const char *old) {
 	return new;
 }
 
-hash_t* aux_redimensionar(hash_t *hash, size_t tam){
+void aux_redimensionar(hash_t *hash, size_t tam){
 
-	//nodo_hash_t* aux = malloc(tam * sizeof(nodo_hash_t*));
-	hash_t* hash2 = malloc(sizeof(hash_t));
-	if (!hash2) return NULL;
-	hash2->vector = malloc(tam * sizeof(nodo_hash_t*));
-	if (!hash2->vector) {
-		free(hash2);
-		return NULL;
-	}
+	size_t aux3 = hash->posiciones_totales;
+	nodo_hash_t** vec_nuevo = calloc(tam, sizeof(nodo_hash_t*));
+	nodo_hash_t** aux = hash->vector;
+	hash->vector = vec_nuevo; 
+	hash->posiciones_ocupadas = 0;
+	hash->posiciones_totales = tam;
 
-	for (int i = 0; i < hash->posiciones_totales; i++){
-		if (hash->vector[i] != NULL){
-			char* copia = strdup(hash->vector[i]->clave);
-			void* dat = hash->vector[i]->dato;
+	for (int i = 0; i < aux3; i++){
+		if (aux[i] != NULL && aux[i]->borrado == false){
+			char* copia_clave = strdup(aux[i]->clave);
+			void* copia_dato = aux[i]->dato;
 			if (hash->destruir_dato) {
-				void* dato_a_liberar = hash->vector[i]->dato;
+				void* dato_a_liberar = aux[i]->dato;
 				hash->destruir_dato(dato_a_liberar);
 			}
-			free(hash->vector[i]);
-			size_t posicion = aux_encontrar_posicion(hash2, copia);
-			hash2->vector[posicion]->clave = copia;
-			hash2->vector[posicion]->dato = dat;
+
+			hash_guardar(hash, copia_clave, copia_dato);
+			//size_t posicion = aux_encontrar_posicion(hash, copia_clave);
+			//nodo_hash_t* nodo_a_guardar = malloc(sizeof(nodo_hash_t));
+			//nodo_a_guardar->clave = copia_clave;
+			//nodo_a_guardar->dato = copia_dato;
+			//nodo_a_guardar->borrado = false;
+			//hash->vector[posicion] = nodo_a_guardar; 
+			//hash->vector[posicion]->clave = copia_clave;
+			//hash->vector[posicion]->dato = copia_dato;
+			free(aux[i]);		
 		}
 	}
-	hash2->posiciones_ocupadas = hash->posiciones_ocupadas;
-	hash2->posiciones_totales = tam;
-	hash2->destruir_dato = hash->destruir_dato;
-	free (hash->vector);
-	return hash2;
+	free(aux);
+	hash->posiciones_totales = tam;
 }
 
 
@@ -150,8 +152,9 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
 	}
 	hash->vector[posicion] = nodo_a_guardar;
 	hash->posiciones_ocupadas++;
-	/*if ((float)hash->posiciones_ocupadas/(float)hash->posiciones_totales >= 0.7) 
-		aux_redimensionar(hash);*/
+	if ((float)hash->posiciones_ocupadas/(float)hash->posiciones_totales >= 0.7){ 
+		aux_redimensionar(hash, hash->posiciones_ocupadas * 2);
+	}	
 	return true;
 }
 
@@ -180,7 +183,7 @@ void* hash_obtener(const hash_t *hash, const char *clave) {
 bool hash_pertenece(const hash_t *hash, const char *clave) {
 	size_t posicion = aux_encontrar_posicion(hash, clave);
 	//printf("la posicion real va a ser: %zu\n", posicion);
-	if (hash->vector[posicion] == NULL || hash->vector[posicion]->borrado == true) return false;
+	if (hash->vector[posicion] == NULL) return false;
 	return true;
 }
 

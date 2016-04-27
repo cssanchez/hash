@@ -28,8 +28,7 @@ struct hash {
 
 
 struct hash_iter {
-	nodo_hash_t** vector;
-	nodo_hash_t* actual;
+	const hash_t* hash;
 	int pos;
 };
 
@@ -83,7 +82,7 @@ void aux_redimensionar(hash_t *hash, size_t tam){
 
 	for (int i = 0; i < aux3; i++){
 		if (aux[i] != NULL && aux[i]->borrado == false){
-			char* copia_clave = strdup(aux[i]->clave);
+			const char* copia_clave = aux[i]->clave;
 			void* copia_dato = aux[i]->dato;
 			/*if (hash->destruir_dato) {
 				void* dato_a_liberar = aux[i]->dato;
@@ -91,28 +90,27 @@ void aux_redimensionar(hash_t *hash, size_t tam){
 			}*/
 
 			hash_guardar(hash, copia_clave, copia_dato);
-			//size_t posicion = aux_encontrar_posicion(hash, copia_clave);
-			//nodo_hash_t* nodo_a_guardar = malloc(sizeof(nodo_hash_t));
-			//nodo_a_guardar->clave = copia_clave;
-			//nodo_a_guardar->dato = copia_dato;
-			//nodo_a_guardar->borrado = false;
-			//hash->vector[posicion] = nodo_a_guardar; 
-			//hash->vector[posicion]->clave = copia_clave;
-			//hash->vector[posicion]->dato = copia_dato;
 		}
-		//free(aux[i]);		
-
+		//free(aux[i]);
 	}
 	free(aux);
 }
 
+nodo_hash_t* aux_nodo_crear(const char* clave, void* dato){
 
+	nodo_hash_t* nodo = malloc(sizeof(nodo_hash_t));
+	if (!nodo) return NULL;
+	nodo->clave = strdup(clave);
+	nodo->dato = dato;
+	nodo->borrado = false;
+	return nodo;
+}
 
 
 // Primitivas de hash.
 
 
-hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
+hash_t* hash_crear(hash_destruir_dato_t destruir_dato) {
 	hash_t* hash = malloc(sizeof(hash_t));
 	if (!hash) return NULL;
 	hash->vector = calloc(TAM_HASH, sizeof(nodo_hash_t*));
@@ -133,23 +131,13 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
  * Post: Se almacenó el par (clave, dato)
  */
 bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
-    //printf("La posicion de %s es.....................: %zu\n", clave, aux_hashear_posicion(clave));
-	nodo_hash_t* nodo_a_guardar = malloc(sizeof(nodo_hash_t));
-	if (!nodo_a_guardar) return NULL;
-	nodo_a_guardar->clave = clave;
-	nodo_a_guardar->dato = dato;
-	nodo_a_guardar->borrado = false;
+	
+	nodo_hash_t* nodo_a_guardar = aux_nodo_crear(clave, dato);
 	size_t posicion = aux_encontrar_posicion(hash, clave);
-    /*printf("La REAL de %s es.....................: %zu\n", clave, posicion);
-	if (posicion != aux_hashear_posicion(clave)) {
-		printf("COLISIONNNNNN !!!!!!!!!!!!\n");
-		colisiones++;
-	}*/
 	if (hash_pertenece(hash, clave)) {
 		if (hash->destruir_dato) {
 			void* dato_a_liberar = hash->vector[posicion]->dato;
 			hash->destruir_dato(dato_a_liberar);
-			//printf("holuu\n");
 		}
 		hash->vector[posicion]->dato = dato; // Reemplazo el dato
 		return true;
@@ -157,15 +145,7 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
 	hash->vector[posicion] = nodo_a_guardar;
 	hash->posiciones_ocupadas++;
 	if ((float)hash->posiciones_ocupadas/(float)hash->posiciones_totales >= 0.7){ 
-		//printf("\nantes ocupadas:  %zu\n", hash->posiciones_ocupadas);
-		//printf("antes tot:  %zu\n", hash->posiciones_totales);
-
 		aux_redimensionar(hash, hash->posiciones_totales * 2);
-
-		//printf("despues ocupadas: %zu\n", hash->posiciones_ocupadas);
-		//printf("despues tot:  %zu\n", hash->posiciones_totales);
-
-
 	}	
 	return true;
 }
@@ -178,6 +158,7 @@ void* hash_borrar(hash_t* hash, const char* clave) {
 	if (hash->destruir_dato) {
 		hash->destruir_dato(dato);
 	}
+	//free((char*)hash->vector[posicion]->clave);
 	hash->vector[posicion]->borrado = true;
 	hash->posiciones_ocupadas--;
 	return dato;
@@ -211,6 +192,7 @@ void hash_destruir(hash_t *hash){
 				void* dato_a_liberar = hash->vector[i]->dato;
 				hash->destruir_dato(dato_a_liberar);
 			}
+			//free((char*)hash->vector[i]->clave);
 			free(hash->vector[i]);
 		}
 	}
@@ -223,47 +205,51 @@ hash_iter_t* hash_iter_crear(const hash_t* hash){
 
 	hash_iter_t* iter = malloc(sizeof(hash_iter_t));
 	if(!iter) return NULL;
-	iter->vector = hash->vector;
-	int act = 0;
 
-	while (hash->vector[act] == NULL && act < TAM_HASH){
+	iter->hash = hash;
+	int act = 0;
+	while (iter->hash->vector[act] == NULL && act < iter->hash->posiciones_totales){
 		act++;
 	}
-	if (act == TAM_HASH){
+	if (act == iter->hash->posiciones_totales){
 		iter->pos = -1;
-		iter->actual = NULL;
 		return iter;
 	}
-
 	iter->pos = act;
-	iter->actual = hash->vector[act];
 	return iter;
 }
 
 
 bool hash_iter_avanzar (hash_iter_t* iter){
 
-	if(hash_iter_al_final(iter) || iter->pos > TAM_HASH) return false;
-	int act = 0;
-	while(iter->vector[act] == NULL){
-		act++;
+	if(hash_iter_al_final(iter)) return false;
+	
+	int act = iter->pos +1;
+	while(iter->hash->vector[act] == NULL  && act < iter->hash->posiciones_totales){
+		act++;	
 	}
 
-	iter->actual = iter->vector[act];
+	if(act == iter->hash->posiciones_totales){
+		iter->pos = act + 1;
+		return false;
+	}
+
+	iter->pos = act;
 	return true;
 }
 
 
 const char* hash_iter_ver_actual(const hash_iter_t *iter){
 
-	if(hash_iter_al_final(iter)) return NULL;
+	int act = iter->pos;
+	if(hash_iter_al_final(iter) || iter->pos > iter->hash->posiciones_totales) return NULL;
 
-	return iter->actual->clave;
+	return iter->hash->vector[act]->clave;
 }
 
 bool hash_iter_al_final(const hash_iter_t *iter){
 
-	if (iter->actual == NULL && iter->pos == -1){
+	if (iter->pos > iter->hash->posiciones_totales){
 		return true;
 	}
 	return false;

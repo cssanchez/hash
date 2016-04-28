@@ -30,6 +30,7 @@ struct hash {
 struct hash_iter {
 	const hash_t* hash;
 	int pos;
+	bool al_final;
 };
 
 
@@ -71,29 +72,25 @@ char* strdup(const char *old) {
 }
 
 
-void aux_redimensionar(hash_t *hash, size_t tam){
+void aux_redimensionar(hash_t *hash, size_t tam_nuevo){
 
-	size_t aux3 = hash->posiciones_totales;
-	nodo_hash_t** vec_nuevo = calloc(tam, sizeof(nodo_hash_t*));
-	nodo_hash_t** aux = hash->vector;
+	size_t tam_viejo = hash->posiciones_totales;
+	nodo_hash_t** vec_nuevo = calloc(tam_nuevo, sizeof(nodo_hash_t*));
+	nodo_hash_t** vec_viejo = hash->vector;
 	hash->vector = vec_nuevo; 
 	hash->posiciones_ocupadas = 0;
-	hash->posiciones_totales = tam;
+	hash->posiciones_totales = tam_nuevo;
 
-	for (int i = 0; i < aux3; i++){
-		if (aux[i] != NULL && aux[i]->borrado == false){
-			const char* copia_clave = aux[i]->clave;
-			void* copia_dato = aux[i]->dato;
-			/*if (hash->destruir_dato) {
-				void* dato_a_liberar = aux[i]->dato;
-				hash->destruir_dato(dato_a_liberar);
-			}*/
-
-			hash_guardar(hash, copia_clave, copia_dato);
+	for (int i = 0; i < tam_viejo; i++){
+		if (vec_viejo[i] != NULL) {
+			if (vec_viejo[i]->borrado == false){
+				hash_guardar(hash, vec_viejo[i]->clave, vec_viejo[i]->dato);
+			}
+			free((char*)(vec_viejo[i]->clave));
+			free(vec_viejo[i]);
 		}
-		//free(aux[i]);
 	}
-	free(aux);
+	free(vec_viejo);
 }
 
 nodo_hash_t* aux_nodo_crear(const char* clave, void* dato){
@@ -132,7 +129,6 @@ hash_t* hash_crear(hash_destruir_dato_t destruir_dato) {
  */
 bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
 	
-	nodo_hash_t* nodo_a_guardar = aux_nodo_crear(clave, dato);
 	size_t posicion = aux_encontrar_posicion(hash, clave);
 	if (hash_pertenece(hash, clave)) {
 		if (hash->destruir_dato) {
@@ -142,6 +138,8 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
 		hash->vector[posicion]->dato = dato; // Reemplazo el dato
 		return true;
 	}
+	nodo_hash_t* nodo_a_guardar = aux_nodo_crear(clave, dato);
+	if (!nodo_a_guardar) return NULL;
 	hash->vector[posicion] = nodo_a_guardar;
 	hash->posiciones_ocupadas++;
 	if ((float)hash->posiciones_ocupadas/(float)hash->posiciones_totales >= 0.7){ 
@@ -158,7 +156,7 @@ void* hash_borrar(hash_t* hash, const char* clave) {
 	if (hash->destruir_dato) {
 		hash->destruir_dato(dato);
 	}
-	//free((char*)hash->vector[posicion]->clave);
+	//((char*)(hash->vector[posicion]->clave));
 	hash->vector[posicion]->borrado = true;
 	hash->posiciones_ocupadas--;
 	return dato;
@@ -192,7 +190,7 @@ void hash_destruir(hash_t *hash){
 				void* dato_a_liberar = hash->vector[i]->dato;
 				hash->destruir_dato(dato_a_liberar);
 			}
-			//free((char*)hash->vector[i]->clave);
+			free((char*)(hash->vector[i]->clave));
 			free(hash->vector[i]);
 		}
 	}
@@ -207,12 +205,13 @@ hash_iter_t* hash_iter_crear(const hash_t* hash){
 	if(!iter) return NULL;
 
 	iter->hash = hash;
+	iter->al_final = false;
 	int act = 0;
-	while (iter->hash->vector[act] == NULL && act < iter->hash->posiciones_totales){
+	while (act < iter->hash->posiciones_totales && iter->hash->vector[act] == NULL){
 		act++;
 	}
 	if (act == iter->hash->posiciones_totales){
-		iter->pos = -1;
+		iter->al_final = true;
 		return iter;
 	}
 	iter->pos = act;
@@ -225,13 +224,13 @@ bool hash_iter_avanzar (hash_iter_t* iter){
 	if(hash_iter_al_final(iter)) return false;
 	
 	int act = iter->pos +1;
-	while(iter->hash->vector[act] == NULL  && act < iter->hash->posiciones_totales){
-		act++;	
+	while(act < iter->hash->posiciones_totales && iter->hash->vector[act] == NULL){
+		act++;
 	}
 
 	if(act == iter->hash->posiciones_totales){
-		iter->pos = act + 1;
-		return false;
+		iter->al_final = true;
+		return true;
 	}
 
 	iter->pos = act;
@@ -241,18 +240,14 @@ bool hash_iter_avanzar (hash_iter_t* iter){
 
 const char* hash_iter_ver_actual(const hash_iter_t *iter){
 
-	int act = iter->pos;
-	if(hash_iter_al_final(iter) || iter->pos > iter->hash->posiciones_totales) return NULL;
+	if(hash_iter_al_final(iter)) return NULL;
 
-	return iter->hash->vector[act]->clave;
+	return iter->hash->vector[iter->pos]->clave;
 }
 
 bool hash_iter_al_final(const hash_iter_t *iter){
 
-	if (iter->pos > iter->hash->posiciones_totales){
-		return true;
-	}
-	return false;
+	return iter->al_final;
 }
 
 
